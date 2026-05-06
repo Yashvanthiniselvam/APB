@@ -1,0 +1,118 @@
+module apb_master(input clk,rst,write,transfer,pready,
+                  input [31:0] addr,wdata,
+                  output reg psel,penable,pwrite,
+                  output reg [31:0] paddr,pwdata);
+  reg [1:0] current_state,next_state;
+  parameter idle=2'b00;
+  parameter setup=2'b01;
+  parameter access=2'b10;
+               
+  always @(posedge clk or negedge rst)
+    begin
+      if(rst==0)
+        current_state<=idle;
+      else
+        current_state<=next_state;
+    end
+  always @(*)
+    begin
+      case(current_state)
+        idle : 
+          begin
+            if(transfer==1)
+              next_state=setup;
+            else
+              next_state=idle;
+          end
+        setup :
+          begin
+            next_state=access;
+          end
+        access :
+          begin
+            if(pready==1)
+              begin
+                if(transfer==1)
+                  next_state=setup;
+                else
+                  next_state=idle;
+              end
+            else
+              next_state=access;
+          end
+        default : next_state=idle;
+      endcase
+    end
+  always @(posedge clk or negedge rst)
+    begin
+      if(rst==0)
+        begin
+          psel<=0;
+          penable<=0;
+          paddr<=0;
+          pwrite<=0;
+          pwdata<=0;
+        end
+      else
+        begin
+          case(current_state)
+            idle :
+              begin
+                psel<=1'b0;
+                penable<=1'b0;
+              end
+            setup:
+              begin
+                psel<=1'b1;
+                penable<=1'b0;
+                paddr<=addr;
+                pwrite<=write;
+                pwdata<=wdata;
+              end
+            access :
+              begin
+                psel<=1'b1;
+                penable<=1'b1;
+              end
+          endcase
+        end
+    end
+endmodule
+
+
+module apb_slave(input clk,rst,psel,penable,pwrite,
+                 input [31:0] paddr,
+                 input [31:0] pwdata,
+                 output reg [31:0] prdata,
+                 output reg pready);
+  reg [31:0] mem [0:15];
+  always @(*)
+    begin
+      if(psel==1 && penable==1)
+        pready=1;
+      else
+        pready=0;
+    end
+  always @(posedge clk or negedge rst) 
+    begin
+      if(rst==0) 
+        begin
+          prdata<=0;
+        end
+      else 
+        begin
+          if(psel==1 && penable==1) 
+            begin
+              if(pwrite==1) 
+                  mem[paddr] <= pwdata;   
+              else 
+                  prdata <= mem[paddr]; 
+            end 
+        end
+    end
+endmodule
+          
+                  
+                  
+                  
+
